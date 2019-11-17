@@ -1,0 +1,88 @@
+version: '3.7'
+
+services:
+  app:
+    build: ./project
+    image: &app app
+    container_name: app
+    restart: always
+    command: sh /srv/app/start.sh
+    environment: &env
+      - DEBUG=True
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=example
+      - DATABASE_URL=postgresql://postgres:password@db/example
+    ports:
+      - 8000:8000
+    volumes:
+      - ./project:/srv
+    depends_on:
+      - rabbitmq
+      - db
+
+  celery:
+    image: *app
+    environment: *env
+    restart: always
+    volumes:
+      - ./project:/srv
+    command: >
+      sh -c 'truncate -s 0 logs/celery.log
+      && celery -A app.worker.app worker --loglevel=info  --logfile=logs/celery.log'
+    depends_on:
+      - db
+      - rabbitmq
+      - app
+
+  monitor:
+    image: *app
+    environment: *env
+    restart: always
+    ports:
+      - 5555:5555
+    volumes:
+      - ./project:/srv
+    command: flower -A app.worker.app --port=5555 --broker=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - rabbitmq
+      - app
+
+  migrations:
+    # restart: always
+    image: *app
+    environment: *env
+    working_dir: /srv/app
+    volumes:
+      - ./project:/srv
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      - db
+
+  rabbitmq:
+    image: rabbitmq:alpine
+    environment: *env
+    ports:
+      - 5672:5672
+
+  redis:
+    image: redis:alpine
+
+  db:
+    image: postgres:alpine
+    restart: always
+    environment: *env
+    ports:
+      - 5432:5432
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+volumes:
+  db_data: {}
