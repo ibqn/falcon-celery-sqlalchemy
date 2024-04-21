@@ -2,7 +2,7 @@ celery
 falcon
 flower
 # due to https://github.com/benoitc/gunicorn/issues/2160
-gunicorn==19.9.0
+gunicorn==22.0.0
 alembic
 psycopg2
 requests
